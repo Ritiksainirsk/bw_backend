@@ -20,4 +20,5 @@ router.post("/examlist", awaitHandler(Controller.examlist));
 router.post("/permanentdelete", awaitHandler(Controller.permanentdelete));
 router.get("/detail/:id", awaitHandler(Controller.get));
 router.post("/get-profile-details", awaitHandler(Controller.getProfileDetails));
+
 module.exports = router;

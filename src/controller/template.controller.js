@@ -24,7 +24,7 @@ class PageManagementController {
   }
 
   static getComponentDetails = async (query, id, body) => {
-    const data = await PageManagement.getComponentDetails(query, body.id);
+    const data = await PageManagement.getComponentDetails(query, id);
     return Const.Response(Const.Success200, data);
   }
 
