@@ -12,6 +12,8 @@ const TemplateRouter = require('./src/routes/template.route');
 const APIRouter = require('./src/routes/api.route');
 const RoleRouter = require('./src/routes/role.route');
 const FileRouter = require('./src/routes/fileupload.route');
+const connectDB = require('./src/config/database');
+const componentRoutes = require('./src/routes/componentRoutes');
 
 const LoginRouter = require('./src/routes/login.route');
 
@@ -31,6 +33,8 @@ app.use(sessions({
     resave: false
 }));
 
+connectDB();
+
 app.use('/admin', AdminRouter);
 app.use('/blog', BlogRouter);
 app.use('/pagemanagement', PagemanagementRouter);
@@ -38,6 +42,8 @@ app.use('/template', TemplateRouter);
 app.use('/role', RoleRouter);
 app.use('/api', APIRouter);
 app.use('/file', FileRouter);
+
+app.use('/api/components', componentRoutes);
 
 app.use('/login', LoginRouter);
 
