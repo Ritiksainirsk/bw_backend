@@ -3,16 +3,38 @@ const Component = require('../models/Component');
 // Create new component
 exports.createComponent = async (req, res) => {
     try {
-        const component = new Component(req.body);
-        await component.save();
+        console.log('Request body:', req.body);
+        
+        if (!req.body.name || !req.body.type || !req.body.content) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: name, type, and content are required'
+            });
+        }
+
+        const component = new Component({
+            name: req.body.name,
+            type: req.body.type,
+            content: req.body.content,
+            status: req.body.status || 'draft',
+            createdBy: req.body.createdBy || 'system'
+        });
+
+        console.log('Component to save:', component);
+        
+        const savedComponent = await component.save();
+        console.log('Saved component:', savedComponent);
+        
         res.status(201).json({
             success: true,
-            data: component
+            data: savedComponent
         });
     } catch (error) {
+        console.error('Error creating component:', error);
         res.status(400).json({
             success: false,
-            error: error.message
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 };
