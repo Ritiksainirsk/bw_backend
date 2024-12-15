@@ -1,20 +1,27 @@
 const express = require("express");
 const router = express.Router();
 
-const Controller = require("../controller/template.controller");
-const awaitHandler = require("../middleware/awaitHandler.middleware");
+const {
+  getTemplates,
+  getTemplateById,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate
+} = require("../controller/template.controller.js");
 
-router.post("/table-setting", awaitHandler(Controller.tablesetting));
-router.post("/save-table-setting", awaitHandler(Controller.savetablesetting));
-router.post("/list", awaitHandler(Controller.list));
-router.post("/add-edit", awaitHandler(Controller.save));
-router.post("/duplicate", awaitHandler(Controller.duplicate));
-router.post("/activate", awaitHandler(Controller.activate));
-router.post("/deactivate", awaitHandler(Controller.deactivate));
-router.post("/draft", awaitHandler(Controller.draft));
-router.post("/permanentdelete", awaitHandler(Controller.permanentdelete));
-router.get("/detail/:id", awaitHandler(Controller.get));
-router.post("/get-page-details", awaitHandler(Controller.getPageDetails));
-router.get("/component-detail/:id", awaitHandler(Controller.getComponentDetails));
+// Get all templates
+router.get("/", getTemplates);
+
+// Get single template
+router.get("/:id", getTemplateById);
+
+// Create new template
+router.post("/", createTemplate);
+
+// Update template
+router.put("/:id", updateTemplate);
+
+// Delete template
+router.delete("/:id", deleteTemplate);
 
 module.exports = router;

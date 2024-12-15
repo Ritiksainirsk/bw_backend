@@ -1,231 +1,258 @@
-const Const = require('../../util/const.util');
-const Field = require('../field.model');
-const md5 = require('md5')
-const csv = require('objects-to-csv');
+const mongoose = require('mongoose');
 
-/**
- * This class modify admin
- */
-class Model {
-
-  
-  static TableName = 'pages';
-  
-
-  static Id = 'id';
-  static _id = 'page_id';
-
-  static CreatedDate = 'created_date';
-
-  /**
-   * save admins
-   * @param {Connection} query 
-   * @param {JSON} json 
-   * @param {JSON} model 
-   */
-
-  static add = async (query, fields, values, user ) => {
-    //TODO : getInsetQueries -> get inspiration from pradhyumna sir.
-    const fields_ = await Field.getInsertFieldsQueries(fields);
-    const values_ = await Field.getInsertDataQueries(values);
-    const encrypted_password = md5(values[fields.indexOf("password")]);
-
-    let queryStr = `INSERT INTO ${Model.TableName}`
-      + ` (${fields_},encrypted_password,`
-      + ` created_by, modified_by, created_date, modified_date) VALUES`
-      + ` (${values_},"${encrypted_password}",`
-      + ` ${user}, ${user}, UTC_TIMESTAMP(), UTC_TIMESTAMP())`;
-    const row = await query(queryStr);
-
-    return row.insertId;
-  }
-
-  static getPageDetails = async (query, id) => {
-    const queryString = `SELECT `
-      + ` * `
-      + ` FROM ${Model.TableName} ` 
-      + ` WHERE id=${id}`;
-    const result = await query(queryString);
-    if(result && result.length > 0){
-      return result[0];
+// Define the page schema
+const pageSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: [true, 'Title is required'],
+        trim: true
+    },
+    slug_url: {
+        type: String,
+        trim: true,
+        unique: true
+    },
+    meta_title: {
+        type: String,
+        trim: true
+    },
+    meta_description: {
+        type: String,
+        trim: true
+    },
+    meta_keywords: {
+        type: String,
+        trim: true
+    },
+    content: {
+        type: String,
+        required: [true, 'Content is required']
+    },
+    status: {
+        type: String,
+        enum: ['draft', 'published', 'inactive'],
+        default: 'draft'
+    },
+    created_by: {
+        type: String,
+        required: true
+    },
+    created_date: {
+        type: Date,
+        default: Date.now
+    },
+    updated_by: {
+        type: String
+    },
+    updated_date: {
+        type: Date
     }
-    return null;
-  }
+});
 
-  static update = async (query, body, user) => {
-    // const update = Field.getUpdateQueries(model, admin);
-    let update = "";
-    update += ` name = "${body.name}" ,`;
-    update += ` user_name = "${body.user_name}" ,`;
-    update += ` email = "${body.email}" ,`;
-    update += ` contact_no = "${body.contact_no}" ,`;
-    update += ` password = "${body.password}" ,`;
-    update += ` encrypted_password = "${md5(body.password)}" ,`;
-    update += ` permission_role = "${body.permission_role}" , `;
-    update += ` status = "${body.status}" `;
-    
-    if(update && update.length > 0) {
-      const queryString = `UPDATE ${Model.TableName}`
-        + ` SET ${update}, modified_by = ${user}, modified_date = UTC_TIMESTAMP()`
-        + ` WHERE id = ${body.id}`;
-      await query(queryString);
+// Add text indexes for search
+pageSchema.index({ 
+    title: 'text', 
+    content: 'text', 
+    meta_keywords: 'text' 
+});
+
+// Pre-save middleware to handle slug generation
+pageSchema.pre('save', function(next) {
+    if (!this.slug_url && this.title) {
+        this.slug_url = this.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
     }
-    return {"message" : Model.TableName + " details updated"}
-  }
-
-  static duplicate = async (query, id, parent, user) => {
-    
-    const queryString = `insert into ${Model.TableName} `
-    + ` () `
-    + ` (select  from ${Model.TableName} Where id=${id})`;
-    const row = await query(queryString);
-    
-    return {"message" : "Duplicated successfully"}
-  }
-  
-
-  /**
-   * this will give list of admins
-   * @param {Connection} query
-   * @param {JSON} model
-   * @param {Int} page current page
-   * @param {Int} perPage page page count
-   * @param {Json} filters filters to be applied in where condition
-   * @returns admins array
-   */
-
-  static list = async (query, fields, page, perPage, filters, sort) => {
-    const offset = (page - 1) * perPage;
-    const sortField = sort && sort.field ? sort.field : Model.CreatedDate;
-    const sortOrder = sort && sort.order && sort.order == 1 ? ` ASC ` : ` DESC `;
-    
-    let filters_ = "";
-    let and = ` and `;
-    if(filters && filters['status']){
-      filters_ += ` status in ( ${filters['status'].join(",")} ) ` ;
-    }else{
-      filters_ += ` status != 4 ` ;
+    if (this.isModified()) {
+        this.updated_date = new Date();
     }
-    if(filters && filters['name']){
-      // TODO: validate filter['VALUE'] before sending to query
-      filters_ += and + ` name like "%${filters['name']}%"`;
+    next();
+});
+
+// Create the model
+const Page = mongoose.model('Page', pageSchema);
+
+class PageModel {
+    static async add(req, fields, values, admin_id) {
+        try {
+            console.log('Adding page with:', { fields, values, admin_id });
+            
+            // Convert fields and values arrays to an object
+            const pageData = {};
+            fields.forEach((field, index) => {
+                if (values[index] !== undefined && values[index] !== '') {
+                    pageData[field] = values[index];
+                }
+            });
+
+            // Add required fields
+            pageData.created_by = admin_id;
+            pageData.created_date = new Date();
+            
+            console.log('Page data to save:', pageData);
+
+            const page = new Page(pageData);
+            const savedPage = await page.save();
+            console.log('Page saved successfully:', savedPage);
+            return savedPage;
+        } catch (error) {
+            console.error('Error saving page:', error);
+            if (error.name === 'ValidationError') {
+                const errors = Object.values(error.errors).map(err => err.message);
+                throw new Error(`Validation failed: ${errors.join(', ')}`);
+            }
+            if (error.code === 11000) {
+                throw new Error('A page with this slug URL already exists');
+            }
+            throw error;
+        }
     }
 
-    if(filters && filters['email']){
-      filters_ += and + ` email like "%${filters['email']}%"`;
+    static async list(req, fields, page = 1, limit = 10, query = {}, operator = 'AND', sort = {}) {
+        try {
+            const skip = (page - 1) * limit;
+            const filter = {};
+            
+            // Build the filter based on query parameters
+            if (Object.keys(query).length > 0) {
+                if (operator === 'AND') {
+                    filter.$and = Object.entries(query).map(([key, value]) => ({
+                        [key]: { $regex: value, $options: 'i' }
+                    }));
+                } else {
+                    filter.$or = Object.entries(query).map(([key, value]) => ({
+                        [key]: { $regex: value, $options: 'i' }
+                    }));
+                }
+            }
+
+            // Execute the query with pagination
+            const pages = await Page.find(filter)
+                .sort(sort)
+                .skip(skip)
+                .limit(limit)
+                .select(fields.join(' '));
+
+            const total = await Page.countDocuments(filter);
+
+            return {
+                data: pages,
+                total,
+                page,
+                totalPages: Math.ceil(total / limit)
+            };
+        } catch (error) {
+            console.error('Error listing pages:', error);
+            throw error;
+        }
     }
 
-    if(filters && filters['user_name']){
-      filters_ += and + ` user_name like "%${filters['user_name']}%"`;
+    static async update(req, pageData, admin_id) {
+        try {
+            const page = await Page.findById(pageData.id);
+            if (!page) {
+                throw new Error('Page not found');
+            }
+
+            // Update the page data
+            Object.keys(pageData).forEach(key => {
+                if (key !== 'id' && key !== 'created_by' && key !== 'created_date') {
+                    page[key] = pageData[key];
+                }
+            });
+
+            page.updated_by = admin_id;
+            page.updated_date = new Date();
+
+            const updatedPage = await page.save();
+            return updatedPage;
+        } catch (error) {
+            console.error('Error updating page:', error);
+            throw error;
+        }
     }
 
-    if(filters && filters['role']){
-      filters_ += and + ` role = "${filters['role']}"`;
+    static async getPageDetails(req, id) {
+        try {
+            const page = await Page.findById(id);
+            if (!page) {
+                throw new Error('Page not found');
+            }
+            return page;
+        } catch (error) {
+            console.error('Error getting page details:', error);
+            throw error;
+        }
     }
-    if(filters && filters['contact_no']){
-      filters_ += and + ` contact_no like "%${filters['contact_no']}%"`;
+
+    static async duplicate(req, id) {
+        try {
+            const page = await Page.findById(id);
+            if (!page) {
+                throw new Error('Page not found');
+            }
+
+            const pageData = page.toObject();
+            delete pageData._id;
+            pageData.title = `${pageData.title} (Copy)`;
+            pageData.slug_url = `${pageData.slug_url}-copy`;
+            pageData.status = 'draft';
+            pageData.created_by = req.body.admin_id;
+            pageData.created_date = new Date();
+            delete pageData.updated_by;
+            delete pageData.updated_date;
+
+            const newPage = new Page(pageData);
+            return await newPage.save();
+        } catch (error) {
+            console.error('Error duplicating page:', error);
+            throw error;
+        }
     }
 
-    if(filters && filters['created_date']){
-      filters_ += and + ` ( created_date between  "${filters['created_date']['from']}" and "${filters['created_date']['till']}" )`;
+    static async updateStatus(id, status, admin_id) {
+        try {
+            const page = await Page.findById(id);
+            if (!page) {
+                throw new Error('Page not found');
+            }
+
+            page.status = status;
+            page.updated_by = admin_id;
+            page.updated_date = new Date();
+
+            return await page.save();
+        } catch (error) {
+            console.error(`Error updating page status to ${status}:`, error);
+            throw error;
+        }
     }
 
-    let fields_ = fields.filter(item => (item.table_name)).map(item =>  (item.field))
-    
-    const adminQueryString = `SELECT `
-      + ` id,${await Field.getSelectedFields(fields_)}`
-      + ` FROM ${Model.TableName} ` 
-      + ` WHERE ${filters_}`
-      + ` ORDER BY ${sortField} ${sortOrder}`
-      + ` LIMIT ${perPage} OFFSET ${offset}`;
-    const result = await query(adminQueryString);
-    return result;
-  }
+    static async activate(req, id) {
+        return this.updateStatus(id, 'published', req.body.admin_id);
+    }
 
-  /**
-   * save admins
-   * @param {Connection} query 
-   * @param {JSON} id - admin id
-   * @param {JSON} role - admin role
-   */
-  
-  static tableSetting = async (query, id, role , page ) => {
-    let queryStr = `select field,name,edit,checked,table_name,sequence from tablesetting`
-    + ` Where admin_id=${id} and role=${role} and status=1 and page="${page}"`
-    + ` Order by sequence ASC`;
-    const rows = await query(queryStr);
-    return rows;
-  }
+    static async deactivate(req, id) {
+        return this.updateStatus(id, 'inactive', req.body.admin_id);
+    }
 
-  static updateTableSetting = async (query, fields, role, user) => {
-    // const update = Field.getUpdateQueries(model, admin);
-    fields.map(async (item) => {
-      let update = "";
-      update += ` sequence = "${item.sequence}" ,`;
-      update += ` edit = "${item.edit}" ,`;
-      update += ` checked = "${item.checked}" ,`;
-      update += ` name = "${item.name}" ,`;
-      update += ` status = "${item.status}" `;
-      
-      if(update && update.length > 0) {
-        const queryString = `UPDATE tablesetting`
-          + ` SET ${update}, modified_by = ${user}, modified_date = UTC_TIMESTAMP()`
-          + ` WHERE admin_id = ${user} and role=${role} and page="${item.page}" and field="${item.field}" `;
-        await query(queryString);
-      } 
-    })
-    return {"message" : "table setting updated"};
-    
-  }
+    static async draft(req, id) {
+        return this.updateStatus(id, 'draft', req.body.admin_id);
+    }
 
-
-  /**
-   * this will give list of admins
-   * @param {Connection} query
-   * @param {JSON} model
-   * @param {Int} admin id
-   * @returns JSON admin Object
-   */
-   static get = async (query, id, fields) => {
-    // const queryFields = Field.getSelectFields(fields);
-    let queryString = `SELECT * `
-      + ` FROM ${Model.TableName}`
-      + ` WHERE id = ${id} AND status != ${Const.Trash}`;
-    const rows = await query(queryString);
-    return rows[0];
-  }
-
-  static deactivate = async (query, id, user) => {
-    let queryStr = `UPDATE ${Model.TableName}`
-      + ` SET status = ${Const.Deactive}, modified_by = '${user}',`
-      + ` modified_date = UTC_TIMESTAMP() WHERE id = ${id}`;
-    await query(queryStr);
-    return {"message" : Model.TableName + " deactivated"};
-  }
-
-  static permanentdelete = async (query, id, user) => {
-    let queryStr = `UPDATE ${Model.TableName}`
-      + ` SET status = ${Const.Trash}, modified_by = '${user}',`
-      + ` modified_date = UTC_TIMESTAMP() WHERE id = ${id}`;
-    await query(queryStr);
-    return {"message" : Model.TableName + " deleted permanently, for undo contact admin"};
-  }
-
-  static activate = async (query, id, user) => {
-    let queryStr = `UPDATE ${Model.TableName}`
-      + ` SET status = ${Const.Active}, modified_by = '${user}',`
-      + ` modified_date = UTC_TIMESTAMP() WHERE id = ${id}`;
-    await query(queryStr);
-    return {"message" : Model.TableName + " activated"};
-  }
-
-  static draft = async (query, id, user) => {
-    let queryStr = `UPDATE ${Model.TableName}`
-      + ` SET status = ${Const.Draft}, modified_by = '${user}',`
-      + ` modified_date = UTC_TIMESTAMP() WHERE id = ${id}`;
-    await query(queryStr);
-    return {"message" : Model.TableName + " drafted"};
-  }
-
+    static async delete(req, id) {
+        try {
+            const result = await Page.findByIdAndDelete(id);
+            if (!result) {
+                throw new Error('Page not found');
+            }
+            return result;
+        } catch (error) {
+            console.error('Error deleting page:', error);
+            throw error;
+        }
+    }
 }
-module.exports = Model;
+
+module.exports = PageModel;

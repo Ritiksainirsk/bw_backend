@@ -1,5 +1,0 @@
-insert into questions 
-(id,exam, question, domain_id, subdomain_id, mediatype, media_path, questionformat, q_theme, selection_type)
-(select id,115 as exam, question, interestvalue as domain_id, subdomain as subdomain_id, mediatype, media_path, 1 as  questionformat, 1 as q_theme, 1 as selection_type
-from oemtmuat.questions where id >= 5023)
-;
